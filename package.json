@@ -1,0 +1,13 @@
+{
+  "name": "kittys-vote-server",
+  "version": "1.0.0",
+  "description": "Serveur de vote pour Kitty's Crates Bedrock FR",
+  "main": "vote_server.js",
+  "scripts": {
+    "start": "node vote_server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "rcon-client": "^4.2.4"
+  }
+}
