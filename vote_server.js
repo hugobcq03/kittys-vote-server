@@ -9,7 +9,7 @@ const fs = require("fs");
 const path = require("path");
 
 const CONFIG = {
-    port: 26626,
+    port: process.env.PORT || 3000,
     vote_secret: "Hugobo12@!?",
     sites: {
         "serveur-minecraft.fr": { playerField: "username", secretField: "key", displayName: "Serveur-Minecraft.fr" },
