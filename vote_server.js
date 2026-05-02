@@ -99,10 +99,11 @@ function sendCommandToBDS(command) {
         ws.on("open", () => {
             console.log(`[WS] Connexion ouverte, authentification...`);
 
-            // 1. S'authentifier avec le token JWT
+            // 1. S'authentifier avec le format AzurHosts
             ws.send(JSON.stringify({
                 event: "auth",
-                data: CONFIG.azur_token
+                token: CONFIG.azur_token,
+                server_id: CONFIG.azur_server_id
             }));
         });
 
