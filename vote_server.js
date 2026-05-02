@@ -113,9 +113,17 @@ function sendCommandToBDS(command) {
                 const msg = JSON.parse(raw.toString());
                 console.log(`[WS] Message reçu : ${JSON.stringify(msg).substring(0, 100)}`);
 
-                // 2. Dès qu'on reçoit n'importe quel message, envoyer la commande
-                if (!authenticated) {
+                // 2. Une fois authentifié, rejoindre le serveur puis envoyer la commande
+                if (!authenticated && msg.event === "authenticated") {
                     authenticated = true;
+
+                    // Rejoindre le serveur BDS spécifique
+                    ws.send(JSON.stringify({
+                        event: "subscribe",
+                        server_id: CONFIG.azur_server_id
+                    }));
+                    console.log(`[WS] Abonnement serveur ${CONFIG.azur_server_id}`);
+
                     setTimeout(() => {
                         ws.send(JSON.stringify({
                             event: "send_command",
@@ -129,7 +137,7 @@ function sendCommandToBDS(command) {
                             ws.close();
                             resolve(true);
                         }, 2000);
-                    }, 500);
+                    }, 1000);
                 }
 
                 if (msg.event === "console_output") {
