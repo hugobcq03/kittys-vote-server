@@ -140,9 +140,7 @@ function sendCommandToBDS(command) {
                     }, 1000);
                 }
 
-                if (msg.event === "console_output") {
-                    console.log(`[WS] Output BDS : ${msg.data}`);
-                }
+                console.log(`[WS] Tous messages : ${JSON.stringify(msg)}`);
             } catch {}
         });
 
