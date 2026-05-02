@@ -21,6 +21,7 @@ const CONFIG = {
     azur_token:     process.env.AZUR_TOKEN     || "",  // ← à remplir (voir ci-dessous)
     // URL WS : wss://azura.azurhosts.com/azurhosts/api/user/transmit
     azur_ws_url:    "wss://azura.azurhosts.com/azurhosts/api/user/transmit",
+    azur_ws_extend:  "wss://azura.azurhosts.com/azurhosts/api/extend",
     azur_enc_session_id: process.env.AZUR_ENC_SESSION_ID || "",
 
     sites: {
@@ -129,19 +130,62 @@ function sendCommandToBDS(command) {
                     }));
                     console.log(`[WS] Abonnement serveur ${CONFIG.azur_server_id}`);
 
-                    // 3. Envoyer la commande après l'abonnement
+                    // 3. Ouvrir une 2e connexion WS vers /extend pour envoyer la commande
                     setTimeout(() => {
-                        ws.send(JSON.stringify({
-                            event: "send_command",
-                            data: command
-                        }));
-                        console.log(`[WS] Commande envoyée : ${command}`);
+                        const ws2 = new WebSocket(CONFIG.azur_ws_extend, {
+                            headers: {
+                                "Cookie": `token=${CONFIG.azur_token}`,
+                                "Origin": "https://azura.azurhosts.com"
+                            }
+                        });
 
-                        setTimeout(() => {
-                            clearTimeout(timeout);
-                            ws.close();
-                            resolve(true);
-                        }, 2000);
+                        ws2.on("open", () => {
+                            // Auth sur la connexion extend
+                            ws2.send(JSON.stringify({
+                                event: "auth",
+                                token: CONFIG.azur_token,
+                                encSessionId: CONFIG.azur_enc_session_id
+                            }));
+                        });
+
+                        ws2.on("message", (raw2) => {
+                            try {
+                                const msg2 = JSON.parse(raw2.toString());
+                                console.log(`[WS2] Message : ${JSON.stringify(msg2).substring(0, 150)}`);
+
+                                if (msg2.event === "authenticated") {
+                                    setTimeout(() => {
+                                        ws2.send(JSON.stringify({
+                                            event: "send_command",
+                                            data: command
+                                        }));
+                                        console.log(`[WS2] Commande envoyée : ${command}`);
+
+                                        setTimeout(() => {
+                                            clearTimeout(timeout);
+                                            ws.close();
+                                            ws2.close();
+                                            resolve(true);
+                                        }, 2000);
+                                    }, 500);
+                                }
+                            } catch {}
+                        });
+
+                        ws2.on("error", (err) => {
+                            console.log(`[WS2] Erreur : ${err.message}`);
+                            // Fallback sur ws1
+                            ws.send(JSON.stringify({
+                                event: "send_command",
+                                data: command
+                            }));
+                            console.log(`[WS] Commande envoyée (fallback) : ${command}`);
+                            setTimeout(() => {
+                                clearTimeout(timeout);
+                                ws.close();
+                                resolve(true);
+                            }, 2000);
+                        });
                     }, 1500);
                 }
             } catch {}
