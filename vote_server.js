@@ -100,7 +100,7 @@ function sendCommandToBDS(command) {
         ws.on("open", () => {
             console.log(`[WS] Connexion ouverte, authentification...`);
 
-            // 1. S'authentifier avec le format AzurHosts
+            // 1. S'authentifier
             ws.send(JSON.stringify({
                 event: "auth",
                 token: CONFIG.azur_token,
@@ -111,19 +111,25 @@ function sendCommandToBDS(command) {
         ws.on("message", (raw) => {
             try {
                 const msg = JSON.parse(raw.toString());
-                console.log(`[WS] Message reçu : ${JSON.stringify(msg).substring(0, 100)}`);
+                console.log(`[WS] Message reçu : ${JSON.stringify(msg).substring(0, 150)}`);
 
-                // 2. Une fois authentifié, rejoindre le serveur puis envoyer la commande
                 if (!authenticated && msg.event === "authenticated") {
                     authenticated = true;
 
-                    // Rejoindre le serveur BDS spécifique
+                    // 2. S'abonner au serveur via transmit HTTP (comme le panel)
+                    const reqId = Date.now() + "-vote";
                     ws.send(JSON.stringify({
-                        event: "subscribe",
-                        server_id: CONFIG.azur_server_id
+                        event: "transmit",
+                        requestId: reqId,
+                        action: "http",
+                        data: {
+                            method: "GET",
+                            path: `/api/extend/user/server/${CONFIG.azur_server_id}/subusers`
+                        }
                     }));
                     console.log(`[WS] Abonnement serveur ${CONFIG.azur_server_id}`);
 
+                    // 3. Envoyer la commande après l'abonnement
                     setTimeout(() => {
                         ws.send(JSON.stringify({
                             event: "send_command",
@@ -131,16 +137,13 @@ function sendCommandToBDS(command) {
                         }));
                         console.log(`[WS] Commande envoyée : ${command}`);
 
-                        // Fermer après 2s
                         setTimeout(() => {
                             clearTimeout(timeout);
                             ws.close();
                             resolve(true);
                         }, 2000);
-                    }, 1000);
+                    }, 1500);
                 }
-
-                console.log(`[WS] Tous messages : ${JSON.stringify(msg)}`);
             } catch {}
         });
 
