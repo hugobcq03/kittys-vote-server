@@ -18,7 +18,8 @@ const CONFIG = {
     // azura.azurhosts.com/azurbox/5f7152a9/server/21ef08c4/console
     azur_box_id:    process.env.AZUR_BOX_ID    || "5f7152a9",
     azur_server_id: process.env.AZUR_SERVER_ID || "21ef08c4",
-    azur_token:     process.env.AZUR_TOKEN     || "",  // ← à remplir (voir ci-dessous)
+    azur_token:     process.env.AZUR_TOKEN     || "",  // JWT token (stockage local auth_token)
+    azur_ext_token:  process.env.AZUR_EXT_TOKEN  || "",  // token hex de la connexion extend
     // URL WS : wss://azura.azurhosts.com/azurhosts/api/user/transmit
     azur_ws_url:    "wss://azura.azurhosts.com/azurhosts/api/user/transmit",
     azur_ws_extend:  "wss://azura.azurhosts.com/azurhosts/api/extend",
@@ -306,6 +307,67 @@ app.post("/bedrock/login", async (req, res) => {
     } else {
         res.json({ success: false, keys: pending.qty, error: "Impossible de donner les clés" });
     }
+});
+
+// ── Bridge endpoints — appelés par vote_bridge.js sur le serveur ─
+app.post("/bedrock/bridge/pending", (req, res) => {
+    const secret = req.headers["x-secret"];
+    if (secret !== CONFIG.vote_secret) return res.status(403).json({ error: "Accès refusé" });
+
+    const db = loadDb();
+    const pending = db.votes.filter(v => !v.delivered);
+
+    // Convertir les votes en commandes BDS
+    const commands = pending.map(v => ({
+        id: v.id,
+        command: `give ${v.player} kittys:votecrate_key 1`,
+        player: v.player,
+        site: v.site
+    }));
+
+    // Ajouter les commandes tellraw
+    const allCommands = [];
+    for (const v of pending) {
+        allCommands.push({
+            id: v.id,
+            command: `give ${v.player} kittys:votecrate_key 1`,
+            player: v.player,
+            site: v.site
+        });
+        allCommands.push({
+            id: `${v.id}_msg`,
+            command: `tellraw ${v.player} {"rawtext":[{"text":"§a✦ Merci pour votre vote ! Vous recevez §e1 clé de vote§a !"}]}`,
+            player: v.player,
+            site: v.site
+        });
+        allCommands.push({
+            id: `${v.id}_broadcast`,
+            command: `tellraw @a {"rawtext":[{"text":"§6✦ §l${v.player}§r §6a voté sur §e${v.site}§6 ! Votez aussi !"}]}`,
+            player: v.player,
+            site: v.site
+        });
+    }
+
+    res.json({ commands: allCommands });
+});
+
+app.post("/bedrock/bridge/confirm", (req, res) => {
+    const secret = req.headers["x-secret"];
+    if (secret !== CONFIG.vote_secret) return res.status(403).json({ error: "Accès refusé" });
+
+    const { id, success } = req.body;
+    if (!id) return res.status(400).json({ error: "ID manquant" });
+
+    // Marquer comme livré seulement si c'est la commande give (pas les messages)
+    const idStr = String(id);
+    if (!idStr.includes("_msg") && !idStr.includes("_broadcast")) {
+        if (success) {
+            markDelivered(Number(id));
+            console.log(`✅ [Bridge] Vote ${id} livré via bridge`);
+        }
+    }
+
+    res.json({ success: true });
 });
 
 // ── Santé & stats ──────────────────────────────────────────
