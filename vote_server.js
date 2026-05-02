@@ -97,25 +97,19 @@ function sendCommandToBDS(command) {
         ws.on("open", () => {
             console.log(`[WS] Connexion ouverte, envoi : ${command}`);
 
-            // 1. S'abonner au serveur
+            // Envoyer la commande directement
             ws.send(JSON.stringify({
-                event: "transmit",
-                requestId: Date.now().toString(),
-                action: "http",
-                data: {
-                    method: "GET",
-                    path: `/api/extend/user/server/${CONFIG.azur_server_id}/subusers`
-                }
+                event: "send_command",
+                data: command
             }));
+            console.log(`[WS] Commande envoyée : ${command}`);
 
-            // 2. Envoyer la commande après un court délai
+            // On considère la commande réussie après 1s sans erreur
             setTimeout(() => {
-                ws.send(JSON.stringify({
-                    event: "send_command",
-                    data: command
-                }));
-                console.log(`[WS] Commande envoyée : ${command}`);
-            }, 500);
+                clearTimeout(timeout);
+                ws.close();
+                resolve(true);
+            }, 1000);
         });
 
         ws.on("message", (raw) => {
@@ -123,9 +117,6 @@ function sendCommandToBDS(command) {
                 const msg = JSON.parse(raw.toString());
                 if (msg.event === "console_output") {
                     console.log(`[WS] Output BDS : ${msg.data}`);
-                    clearTimeout(timeout);
-                    ws.close();
-                    resolve(msg.data);
                 }
             } catch {}
         });
