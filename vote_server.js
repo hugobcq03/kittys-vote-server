@@ -94,27 +94,42 @@ function sendCommandToBDS(command) {
             reject(new Error("Timeout WebSocket"));
         }, 10000);
 
+        let authenticated = false;
+
         ws.on("open", () => {
-            console.log(`[WS] Connexion ouverte, envoi : ${command}`);
+            console.log(`[WS] Connexion ouverte, authentification...`);
 
-            // Envoyer la commande directement
+            // 1. S'authentifier avec le token JWT
             ws.send(JSON.stringify({
-                event: "send_command",
-                data: command
+                event: "auth",
+                data: CONFIG.azur_token
             }));
-            console.log(`[WS] Commande envoyée : ${command}`);
-
-            // On considère la commande réussie après 1s sans erreur
-            setTimeout(() => {
-                clearTimeout(timeout);
-                ws.close();
-                resolve(true);
-            }, 1000);
         });
 
         ws.on("message", (raw) => {
             try {
                 const msg = JSON.parse(raw.toString());
+                console.log(`[WS] Message reçu : ${JSON.stringify(msg).substring(0, 100)}`);
+
+                // 2. Dès qu'on reçoit n'importe quel message, envoyer la commande
+                if (!authenticated) {
+                    authenticated = true;
+                    setTimeout(() => {
+                        ws.send(JSON.stringify({
+                            event: "send_command",
+                            data: command
+                        }));
+                        console.log(`[WS] Commande envoyée : ${command}`);
+
+                        // Fermer après 2s
+                        setTimeout(() => {
+                            clearTimeout(timeout);
+                            ws.close();
+                            resolve(true);
+                        }, 2000);
+                    }, 500);
+                }
+
                 if (msg.event === "console_output") {
                     console.log(`[WS] Output BDS : ${msg.data}`);
                 }
@@ -134,7 +149,7 @@ function sendCommandToBDS(command) {
 
 // ── Donner une clé via commande BDS ───────────────────────
 async function giveKeyToBDSPlayer(playerName, qty, siteName) {
-    const cmd = `give "${playerName}" kittys:votecrate_key ${qty}`;
+    const cmd = `give ${playerName} kittys:votecrate_key ${qty}`;
     try {
         await sendCommandToBDS(cmd);
         console.log(`✅ Clé donnée à ${playerName} via BDS (${siteName})`);
@@ -230,7 +245,7 @@ app.post("/bedrock/login", async (req, res) => {
         clearPendingOffline(player);
         // Message de bienvenue
         await sendCommandToBDS(
-            `tellraw "${player}" {"rawtext":[{"text":"§a✦ §lBienvenue !§r §aVous aviez §e${pending.qty} clé(s) de vote§a en attente !"}]}`
+            `tellraw ${player} {"rawtext":[{"text":"§a✦ §lBienvenue !§r §aVous aviez §e${pending.qty} clé(s) de vote§a en attente !"}]}`
         );
         res.json({ success: true, keys: pending.qty });
     } else {
