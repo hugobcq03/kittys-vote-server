@@ -21,6 +21,7 @@ const CONFIG = {
     azur_token:     process.env.AZUR_TOKEN     || "",  // ← à remplir (voir ci-dessous)
     // URL WS : wss://azura.azurhosts.com/azurhosts/api/user/transmit
     azur_ws_url:    "wss://azura.azurhosts.com/azurhosts/api/user/transmit",
+    azur_enc_session_id: process.env.AZUR_ENC_SESSION_ID || "",
 
     sites: {
         "serveur-minecraft.fr":  { playerField: "username", secretField: "key",    displayName: "Serveur-Minecraft.fr" },
@@ -103,7 +104,7 @@ function sendCommandToBDS(command) {
             ws.send(JSON.stringify({
                 event: "auth",
                 token: CONFIG.azur_token,
-                server_id: CONFIG.azur_server_id
+                encSessionId: CONFIG.azur_enc_session_id
             }));
         });
 
